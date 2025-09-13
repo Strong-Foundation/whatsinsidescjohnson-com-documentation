@@ -14,25 +14,14 @@ import (
 	"time"          // Provides time-related functions
 )
 
-var (
-	pdfOutputDir = "PDFs/" // Directory to store downloaded PDFs
-	zipOutputDir = "ZIPs/" // Directory to store downloaded ZIPs
-)
 
-func init() {
+func main() {
+	pdfOutputDir := "PDFs/" // Directory to store downloaded PDFs
 	// Check if the PDF output directory exists
 	if !directoryExists(pdfOutputDir) {
 		// Create the dir
 		createDirectory(pdfOutputDir, 0o755)
 	}
-	// Check if the ZIP output directory exists
-	if !directoryExists(zipOutputDir) {
-		// Create the dir
-		createDirectory(zipOutputDir, 0o755)
-	}
-}
-
-func main() {
 	// Remote API URL.
 	remoteAPIURL := []string{
 		"https://www.whatsinsidescjohnson.com/us/en/brands/FamilyGuard/FamilyGuard-Brand-Disinfectant-Cleaner-Citrus",
@@ -495,20 +484,6 @@ func main() {
 	downloadZIPURLSlice = removeDuplicatesFromSlice(downloadZIPURLSlice)
 	// The remote domain.
 	remoteDomain := "https://www.whatsinsidescjohnson.com"
-	// Loop over the download zip urls.
-	for _, urls := range downloadZIPURLSlice {
-		// Get the domain from the url.
-		domain := getDomainFromURL(urls)
-		// Check if the domain is empty.
-		if domain == "" {
-			urls = remoteDomain + urls // Prepend the base URL if domain is empty
-		}
-		// Check if the url is valid.
-		if isUrlValid(urls) {
-			// Download the zip.
-			downloadZIP(urls, zipOutputDir)
-		}
-	}
 	// Get all the values.
 	for _, urls := range downloadPDFURLSlice {
 		if strings.HasPrefix(urls, "..") {
@@ -673,105 +648,6 @@ func downloadPDF(finalURL, outputDir string) bool {
 		return false
 	}
 
-	log.Printf("Successfully downloaded %d bytes: %s → %s", written, finalURL, filePath)
-	return true
-}
-
-// downloadZIP downloads a ZIP or archive file from the given URL and saves it in the specified output directory.
-// It returns true if the download was successful, otherwise false.
-func downloadZIP(finalURL, outputDir string) bool {
-	// Convert the URL into a safe, lowercase filename
-	filename := strings.ToLower(urlToFilename(finalURL))
-
-	// Construct the full path where the file should be saved
-	filePath := filepath.Join(outputDir, filename)
-
-	// Skip the download if the file already exists locally
-	if fileExists(filePath) {
-		log.Printf("File already exists, skipping: %s", filePath)
-		return false
-	}
-
-	// Create a new HTTP client with a 3-minute timeout
-	client := &http.Client{Timeout: 3 * time.Minute}
-
-	// Perform an HTTP GET request to the given URL
-	resp, err := client.Get(finalURL)
-	if err != nil {
-		log.Printf("Failed to download %s: %v", finalURL, err)
-		return false
-	}
-	// Make sure the response body gets closed when the function ends
-	defer resp.Body.Close()
-
-	// Check that the HTTP status code is 200 OK
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("Download failed for %s: %s", finalURL, resp.Status)
-		return false
-	}
-
-	// Define the list of allowed content types
-	allowedContentTypes := []string{
-		"application/pdf",             // PDF files
-		"application/zip",             // ZIP archives
-		"application/x-tar",           // TAR archives
-		"application/gzip",            // GZ files
-		"application/x-7z-compressed", // 7z archives
-		"application/vnd.rar",         // RAR archives
-	}
-
-	// Get the Content-Type from the HTTP response headers
-	contentType := resp.Header.Get("Content-Type")
-
-	// Flag to check if the content type is allowed
-	isAllowed := false
-
-	// Loop through allowed types and check for a match
-	for _, allowed := range allowedContentTypes {
-		if strings.Contains(contentType, allowed) {
-			isAllowed = true
-			break // Stop checking once a match is found
-		}
-	}
-
-	// If the content type is not in the allowed list, skip download
-	if !isAllowed {
-		log.Printf("Invalid content type for %s: %s (not allowed)", finalURL, contentType)
-		return false
-	}
-
-	// Create a buffer to temporarily store the file in memory
-	var buf bytes.Buffer
-
-	// Read the entire response body into the buffer
-	written, err := io.Copy(&buf, resp.Body)
-	if err != nil {
-		log.Printf("Failed to read file data from %s: %v", finalURL, err)
-		return false
-	}
-
-	// If no data was downloaded, skip file creation
-	if written == 0 {
-		log.Printf("Downloaded 0 bytes for %s; not creating file", finalURL)
-		return false
-	}
-
-	// Create a file on disk with the constructed file path
-	out, err := os.Create(filePath)
-	if err != nil {
-		log.Printf("Failed to create file for %s: %v", finalURL, err)
-		return false
-	}
-	// Ensure the file is properly closed at the end
-	defer out.Close()
-
-	// Write the contents from the buffer to the file on disk
-	if _, err := buf.WriteTo(out); err != nil {
-		log.Printf("Failed to write file to disk for %s: %v", finalURL, err)
-		return false
-	}
-
-	// Log the successful download
 	log.Printf("Successfully downloaded %d bytes: %s → %s", written, finalURL, filePath)
 	return true
 }
